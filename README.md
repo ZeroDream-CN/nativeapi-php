@@ -182,6 +182,14 @@ CreateThread(function() {
 
 </details>
 
+## Exports
+You can use exports to share data between LUA/JS scripts.
+
+```php
+$module = (new export('resource-name'));
+$result = $module->methodName($arg1, $arg2, ...);
+```
+
 ## Performance
 10000 times loop test, the result is about 3s.
 
