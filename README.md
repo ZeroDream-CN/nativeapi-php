@@ -182,6 +182,22 @@ CreateThread(function() {
 
 </details>
 
+## Performance
+10000 times loop test, the result is about 3s.
+
+OS specs: Fedora 40 Linux, E5-2698 v3 CPU, 128GB RAM, 1Gbps LAN.
+```php
+RegisterCommand('perf', function($source, $args) use ($logger) {
+    global $logger;
+    $begin = microtime(true);
+    for ($i = 0; $i < 10000; $i++) {
+        GetHashKey('test' . $i);
+    }
+    $end = microtime(true);
+    $logger->info(sprintf('Performance test: %fs', $end - $begin));
+});
+```
+
 ## Contributing
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
 
