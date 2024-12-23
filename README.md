@@ -191,9 +191,9 @@ $result = $module->methodName($arg1, $arg2, ...);
 ```
 
 ## Performance
-10000 times loop test, the result is about 3s.
+10000 times loop test, the result is about 1.6s.
 
-OS specs: Fedora 40 Linux, E5-2698 v3 CPU, 128GB RAM, 1Gbps LAN.
+OS specs: Fedora 40 Linux, E5-2690 v4 CPU, 256GB RAM, 1Gbps LAN.
 ```php
 RegisterCommand('perf', function($source, $args) use ($logger) {
     global $logger;
