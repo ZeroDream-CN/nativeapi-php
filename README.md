@@ -34,27 +34,62 @@ define('DATABASE_PASS', '123456789');
 define('DATABASE_NAME', 'fivem');
 ```
 
-Create a folder in your project `scripts/` folder, and create a file named `load.php` in the folder.
+Create a folder in your project `scripts/` folder. The first letter of the folder name must be uppercase.
+
+Then create a file named `load.php` in the folder.
 
 ```text
 project/
 ├── scripts/
-│   ├── load.php
+│   ├── MyScript/
+│   │   ├── load.php
 ```
 
-Edit the `load.php` file in the `scripts/` folder and implement your scripts.
+Edit the `load.php` file in the `MyScript/` folder and implement your scripts.
 
 ```php
 <?php
-// implement your scripts here
-RegisterCommand('hello', function($source, $args) use ($logger) {
-    global $logger;
-    TriggerClientEvent('chat:addMessage', $source, [
-        'args' => [
-            sprintf('Hello, %s', GetPlayerName($source))
-        ]
-    ]);
-});
+class MyScript
+{
+    private $logger;
+
+    public function __construct()
+    {
+        // implement your constructor here
+        global $logger;
+        $this->logger = $logger;
+    }
+
+    public function onLoad()
+    {
+        // implement your scripts here
+        RegisterCommand('hello', function($source, $args) {
+            $this->logger->info(sprintf('Player %s says hello', GetPlayerName($source)));
+            TriggerClientEvent('chat:addMessage', $source, [
+                'args' => [
+                    sprintf('Hello, %s', GetPlayerName($source))
+                ]
+            ]);
+        });
+    }
+}
+```
+
+The `onLoad` method will be called when the script is loaded.
+
+### Import other scripts
+You can import other scripts instance by adding `// Import:` tag in the `load.php` file.
+
+```php
+<?php
+// Import: MyAnotherScript
+// Import: MyAnotherScript2
+class MyResource {
+    public function onLoad($myScript, $myScript2) {
+        // $myScript is an instance of MyAnotherScript
+        // $myScript2 is an instance of MyAnotherScript2
+    }
+}
 ```
 
 Then, run the `main.php` file in the project root directory.

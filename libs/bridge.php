@@ -23,7 +23,7 @@ function CallBridge($action, $data)
         if ($data) {
             $decrypted = $aes->decrypt($data);
             $json      = json_decode($decrypted, true, 512, JSON_PRESERVE_ZERO_FRACTION);
-            if ($json && $json['eid'] === $uuid) {
+            if ($json && isset($json['eid']) && $json['eid'] == $uuid) {
                 $data = $json['data'];
                 return $data;
             }
