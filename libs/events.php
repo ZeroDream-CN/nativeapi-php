@@ -3,6 +3,7 @@ $registeredEvent = [];
 $registeredServerEvent = [];
 $registeredCommand = [];
 $registeredThread = [];
+$registeredFunction = [];
 
 function RegisterServerEvent($eventName, $callback)
 {
@@ -92,6 +93,9 @@ function EvalCode($code)
 function ProcessResult($result)
 {
     $object = new dynClass();
+    if (!is_array($result)) {
+        return $result;
+    }
     foreach ($result as $key => $value) {
         if (is_array($value)) {
             $object->{$key} = ProcessResult($value);
@@ -100,6 +104,7 @@ function ProcessResult($result)
                 $function     = substr($value, 13);
                 $object->$key = function () use ($function) {
                     $args   = func_get_args();
+                    $args   = ProcessArgs($args);
                     $result = CallBridge('callFunction', [
                         'id'   => $function,
                         'args' => $args
@@ -118,6 +123,71 @@ function ProcessResult($result)
     return $object;
 }
 
+function ProcessRemoteFunction($object)
+{
+    $result = [];
+    foreach ($object as $key => $value) {
+        if (is_string($value) && substr($value, 0, 13) === '__FUNCTION__:') {
+            $function = substr($value, 13);
+            $result[$key] = function () use ($function) {
+                $args   = func_get_args();
+                $args   = ProcessArgs($args);
+                $result = CallBridge('callFunction', [
+                    'id'   => $function,
+                    'args' => $args
+                ]);
+                if ($result['type'] == 'vector3') {
+                    return new Vector3($result['result'][0], $result['result'][1], $result['result'][2]);
+                } else {
+                    return isset($result['result']) ? $result['result'] : $result;
+                }
+            };
+        } elseif (is_array($value)) {
+            $result[$key] = ProcessRemoteFunction($value);
+        } else {
+            $result[$key] = $value;
+        }
+    }
+    return $result;
+}
+
+function ProcessArgs($args)
+{
+    $result = [];
+    foreach ($args as $arg) {
+        if (is_callable($arg)) {
+            $id = CreateFunction($arg);
+            $result[] = '__FUNCTION__:' . $id;
+        } else {
+            $result[] = $arg;
+        }
+    }
+    return $result;
+}
+
+function ProcessVector3($vector3)
+{
+    $result = [];
+    foreach ($vector3 as $key => $value) {
+        if ($value instanceof Vector3) {
+            $arr = $value->toArray();
+            $result[$key] = "__VECTOR3__:" . json_encode($arr);
+        } elseif (is_array($value)) {
+            $result[$key] = ProcessVector3($value);
+        } else {
+            $result[$key] = $value;
+        }
+    }
+    return $result;
+}
+
+function CreateFunction($callback)
+{
+    global $registeredFunction, $logger;
+    $registeredFunction[] = $callback;
+    return count($registeredFunction) - 1;
+}
+
 function CreateThread($callback)
 {
     global $registeredThread, $logger;
@@ -129,60 +199,97 @@ function HandleThreads()
 {
     global $registeredThread, $client, $logger;
     foreach ($registeredThread as $thread) {
-        go($thread);
+        go(function() use ($thread) {
+            \Swoole\Runtime::enableCoroutine();
+            $thread();
+        });
     }
 }
 
 function HandleEvents()
 {
-    global $registeredEvent, $registeredServerEvent, $registeredCommand, $client, $logger, $channel, $channelResp;
+    global $registeredEvent, $registeredServerEvent, $registeredCommand, $registeredFunction, $client, $logger, $channel, $channelResp;
     $aes = new ZeroAES(AES_KEY, AES_IV);
-    $logger->info('Event handler started');
     $client->eventThreadId = Co::getCid();
+    $logger->info('Event handler started');
+    $cachedData = false;
     while (true) {
         try {
-            $data = $client->recv(1);
-            $data = $data ? $data->data : null;
-            if ($data) {
-                $decrypted = $aes->decrypt($data);
-                $json      = json_decode($decrypted, true, 512, JSON_PRESERVE_ZERO_FRACTION);
-                if ($json) {
-                    $action = $json['action'];
-                    $data   = $json['data'];
-                    switch ($action) {
-                        case 'serverEvent':
-                            $eventName = $data['name'];
-                            $args      = $data['args'];
-                            if (isset($registeredServerEvent[$eventName])) {
-                                foreach ($registeredServerEvent[$eventName] as $callback) {
-                                    call_user_func_array($callback, $args);
+            $raw = $client->recv(2);
+            $raw = $raw ? $raw->data : null;
+            if ($cachedData) {
+                $raw = $cachedData . $raw;
+                $cachedData = false;
+            }
+            if ($raw) {
+                $raw       = preg_replace('/[^a-zA-Z0-9\;\!]/', '', $raw);
+                // 每个数据块以 \n 分割，判断各数据块是否以 ! 开头，; 结尾
+                // 如果是则认为是加密数据，推入队列
+                // 否则存入 cachedData 中，下次循环时处理
+                $dataList  = [];
+                $dataExp   = explode("\n", $raw);
+                $dataCount = count($dataExp);
+                for ($i = 0; $i < $dataCount; $i++) {
+                    $data = $dataExp[$i];
+                    if (substr($data, 0, 1) == '!' && substr($data, -1) == ';') {
+                        $dataList[] = substr($data, 1, -1);
+                    } else {
+                        $cachedData = $data;
+                    }
+                }
+                // 解密数据并处理
+                for ($i = 0; $i < count($dataList); $i++) {
+                    $data      = $dataList[$i];
+                    $logger->debug('Received data:', $data);
+                    $decrypted = $aes->decrypt($data);
+                    $json      = json_decode($decrypted, true, 512, JSON_PRESERVE_ZERO_FRACTION);
+                    if ($json) {
+                        $action = $json['action'];
+                        $data   = $json['data'];
+                        switch ($action) {
+                            case 'serverEvent':
+                                $eventName = $data['name'];
+                                $args      = $data['args'];
+                                if (isset($registeredServerEvent[$eventName])) {
+                                    foreach ($registeredServerEvent[$eventName] as $callback) {
+                                        call_user_func_array($callback, $args);
+                                    }
                                 }
-                            }
-                            break;
-                        case 'event':
-                            $eventName = $data['name'];
-                            $args      = $data['args'];
-                            if (isset($registeredEvent[$eventName])) {
-                                foreach ($registeredEvent[$eventName] as $callback) {
-                                    call_user_func_array($callback, $args);
+                                break;
+                            case 'event':
+                                $eventName = $data['name'];
+                                $args      = $data['args'];
+                                if (isset($registeredEvent[$eventName])) {
+                                    foreach ($registeredEvent[$eventName] as $callback) {
+                                        call_user_func_array($callback, $args);
+                                    }
                                 }
-                            }
-                            break;
-                        case 'command':
-                            $command = $data['name'];
-                            $source  = $data['source'];
-                            $args    = $data['args'] ?? [];
-                            $raw     = $data['raw'];
-                            if (isset($registeredCommand[$command])) {
-                                $registeredCommand[$command]($source, $args, $raw);
-                            }
-                            break;
-                        case 'stop':
-                            $logger->info('Server stopped');
-                            exit;
-                        default:
-                            $logger->warning('Unknown action:', $action);
-                            break;
+                                break;
+                            case 'command':
+                                $command = $data['name'];
+                                $source  = $data['source'];
+                                $args    = $data['args'] ?? [];
+                                $raw     = $data['raw'];
+                                if (isset($registeredCommand[$command])) {
+                                    $registeredCommand[$command]($source, $args, $raw);
+                                }
+                                break;
+                            case 'function':
+                                $id   = Intval($data['id']);
+                                $args = $data['args'];
+                                if (isset($registeredFunction[$id])) {
+                                    $args = ProcessRemoteFunction($args);
+                                    // $logger->info('Calling function:', $id, json_encode($args));
+                                    call_user_func_array($registeredFunction[$id], $args);
+                                }
+                                break;
+                            case 'stop':
+                                $logger->info('Server stopped');
+                                exit;
+                            default:
+                                $logger->warning('Unknown action:', $action);
+                                break;
+                        }
                     }
                 }
             }

@@ -5,11 +5,12 @@ function CallBridge($action, $data)
     $cid = Co::getCid();
     if ($cid !== 1 && $cid !== $client->eventThreadId) {
         $channel->push([$action, $data]);
-        $data = $channelResp->pop(3.0);
+        $data = $channelResp->pop(5.0);
         return $data;
     }
     $aes       = new ZeroAES(AES_KEY, AES_IV);
     $uuid      = uuid();
+    // $data      = ProcessVector3($data);
     $encrypted = $aes->encrypt(json_encode([
         'action' => $action,
         'eid'    => $uuid,
@@ -18,9 +19,10 @@ function CallBridge($action, $data)
     $client->push($encrypted);
     $begin = time();
     while (time() - $begin < 5) {
-        $data = $client->recv(1);
-        $data = $data ? $data->data : null;
-        if ($data) {
+        $raw = $client->recv(1);
+        $raw = $raw ? $raw->data : null;
+        if ($raw) {
+            $data      = substr($raw, 1, -2);
             $decrypted = $aes->decrypt($data);
             $json      = json_decode($decrypted, true, 512, JSON_PRESERVE_ZERO_FRACTION);
             if ($json && isset($json['eid']) && $json['eid'] == $uuid) {

@@ -36,3 +36,9 @@ function color($text) {
 
     return $text;
 }
+
+function shutdown()
+{
+    // 这是关闭函数，在脚本完成前可以进行任何最后的操作。
+    echo 'Script executed with success', PHP_EOL;
+}

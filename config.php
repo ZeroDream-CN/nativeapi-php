@@ -12,3 +12,7 @@ define('DATABASE_PORT', 3306);
 define('DATABASE_USER', 'root');
 define('DATABASE_PASS', '123456789');
 define('DATABASE_NAME', 'zerodream');
+
+// Http Server
+define('HTTP_SERVER_HOST', '0.0.0.0');
+define('HTTP_SERVER_PORT', 38081);

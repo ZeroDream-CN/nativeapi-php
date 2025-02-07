@@ -15,6 +15,14 @@ class ZeroAES {
     }
 
     public function decrypt($text) {
+        if (!$text || empty($text)) {
+            return '';
+        }
+        // is even?
+        if (strlen($text) % 2 != 0) {
+            echo "[ERROR] Invalid hex string: {$text}\n";
+            return '';
+        }
         $cipher    = "aes-256-cfb";
         $text      = hex2bin($text);
         $decrypted = openssl_decrypt($text, $cipher, $this->key, OPENSSL_RAW_DATA, $this->iv);

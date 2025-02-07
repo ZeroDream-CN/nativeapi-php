@@ -64,12 +64,18 @@ class Logger
 
     private function getThreadName($cid)
     {
+        global $client;
         if ($cid == -1) {
             return 'MAIN';
         }
+        if (property_exists($client, 'eventThreadId') && $cid == $client->eventThreadId) {
+            return 'EVENT';
+        }
+        if (property_exists($client, 'httpThreadId') && $cid == $client->httpThreadId) {
+            return 'HTTP';
+        }
         $threadNames = [
             1 => 'LOADER',
-            2 => 'EVENTS',
         ];
         return $threadNames[$cid] ?? sprintf('CO-%d', $cid);
     }

@@ -155,7 +155,7 @@ $nativeList = [
     'IsEntityVisible',
     'LoadPlayerCommerceDataExt',
     'DoesPlayerExist',
-    'SetHttpHandler',
+    // 'SetHttpHandler',
     'GetEntityOrphanMode',
     'GetVehicleColours',
     'IsPlayerUsingSuperJump',
@@ -266,7 +266,7 @@ function ExecuteNative($native, $args) {
         'name' => $native,
         'args' => $args
     ]);
-    if ($data !== null) {
+    if ($data !== null && is_array($data)) {
         if ($data['type'] == 'vector3') {
             return new Vector3($data['result'][0], $data['result'][1], $data['result'][2]);
         } else {

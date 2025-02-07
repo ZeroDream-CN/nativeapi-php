@@ -14,6 +14,7 @@ require_once('libs/logger.php');
 require_once('libs/vector3.php');
 require_once('libs/exports.php');
 require_once('libs/mysql.php');
+require_once('libs/http.php');
 require_once('libs/utils.php');
 require_once('libs/bridge.php');
 require_once('libs/natives.php');
@@ -35,19 +36,24 @@ $database    = new ZeroDB(DATABASE_HOST, DATABASE_PORT, DATABASE_NAME, DATABASE_
 $client      = new Client(NATIVE_API_HOST, NATIVE_API_PORT);
 $channel     = new Channel(128);
 $channelResp = new Channel(128);
+$httpServer  = null;
+
+// Connect to MySQL
+$database->connect();
 
 // Swoole Hook Flags
 Co::set(['hook_flags' => SWOOLE_HOOK_ALL]);
 
+register_shutdown_function('shutdown');
+
 // Main function
-run(function () use ($client, $logger, $database, $channel, $channelResp) {
-    // Connect to MySQL
-    $ret = $database->connect();
-    if (!$ret) {
+run(function () use ($client, $logger, $database, $channel, $channelResp, $httpServer) {
+    
+    if (!$database->getConnection()) {
         $logger->error('Failed to connect to MySQL, please check your configuration');
         return;
     }
-
+    
     $logger->info('Connected to ^2MySQL');
 
     // Connect to Native Server WebSocket
@@ -65,7 +71,7 @@ run(function () use ($client, $logger, $database, $channel, $channelResp) {
     }
 
     $logger->info('Connected to ^3Native Server');
-
+    
     // Load scripts
     ScanScripts(sprintf('%s/scripts', ROOT));
 
@@ -83,4 +89,7 @@ run(function () use ($client, $logger, $database, $channel, $channelResp) {
             return;
         }
     });
+
+    // Initialize HTTP Server
+    InitHttpServer();
 });
