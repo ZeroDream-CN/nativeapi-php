@@ -80,14 +80,7 @@ run(function () use ($client, $logger, $database, $channel, $channelResp, $httpS
 
     // Main loop
     go(function () use ($client, $logger, $database, $channel, $channelResp) {
-        try {
-            HandleEvents();
-        } catch (\Swoole\ExitException $e) {
-            $logger->info('Event handler stopped');
-            assert($e->getStatus() === 1);
-            assert($e->getFlags() === SWOOLE_EXIT_IN_COROUTINE);
-            return;
-        }
+        HandleEvents();
     });
 
     // Initialize HTTP Server
